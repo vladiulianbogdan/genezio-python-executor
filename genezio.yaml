@@ -19,7 +19,9 @@ backend:
     - name: flask-function
       # The path to the function's code.
       path: ./
+      # The name of the application.
+      handler: app
       # The entry point for the function.
       entry: index.py
-      # The runtime for the function.
+      # The type of the function.
       type: httpServer
