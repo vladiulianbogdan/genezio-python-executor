@@ -5,6 +5,7 @@ backend:
           name: flask-function
           path: ./
           type: httpServer
+          maxConcurrentRequestsPerInstance: 1
     language:
         name: python
         packageManager: pip
