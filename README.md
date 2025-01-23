@@ -1,73 +1,58 @@
-<div align="center"> <a href="https://genezio.com/">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/genez-io/graphics/raw/HEAD/svg/Icon_Genezio_White.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://github.com/genez-io/graphics/raw/HEAD/svg/Icon_Genezio_Black.svg">
-    <img alt="genezio logo" src="https://github.com/genez-io/graphics/raw/HEAD/svg/Icon_Genezio_Black.svg" height="100" >
-  </picture>
-</a>
- </div>
+# Genezio LLM Python Evaluator
 
-<div align="center">
+Python-Eval is a Flask-based web service designed to enable remote execution of Python code, making it especially valuable for LLM tooling. It provides an API endpoint to execute Python code snippets and return their output, offering a seamless way for LLMs to interact with the external world. By deploying Python-Eval to Genezio, you can achieve a scalable and secure runtime evaluator, ensuring efficient and controlled execution of dynamically generated code.
 
-[![Join our community](https://img.shields.io/discord/1024296197575422022?style=social&label=Join%20our%20community%20&logo=discord&labelColor=6A7EC2)](https://discord.gg/uc9H5YKjXv)
-[![Follow @geneziodev](https://img.shields.io/twitter/url/https/twitter.com/geneziodev.svg?style=social&label=Follow%20%40geneziodev)](https://twitter.com/geneziodev)
+## Features
 
-</div>
-
-# Genezio Flask on Getting Started
-
-In the `index.py` file, you will see the implementation of a Flask app that has three routes:
-
-- `/` - returns a hello message
-- `/name` - returns the name provided in the URL parameter
-
-You can run the app locally by running the following commands:
-
-```bash
-pip install -r requirements.txt
-python index.py
-```
+- Remote Python code execution
+- Dynamic dependency installation
+- Secure execution environment
+- JSON-based API
 
 # Deploy
 :rocket: You can deploy your own version of the template to Genezio with one click:
 
-[![Deploy to Genezio](https://raw.githubusercontent.com/Genez-io/graphics/main/svg/deploy-button.svg)](https://app.genez.io/start/deploy?repository=https://github.com/Genez-io/flask-getting-started)
+[![Deploy to Genezio](https://raw.githubusercontent.com/Genez-io/graphics/main/svg/deploy-button.svg)](https://app.genez.io/start/deploy?repository=https://github.com/vladiulianbogdan/python-eval)
 
+## How It Works
 
-## Genezio CLI Commands
+The service exposes a single endpoint `/execute` that accepts POST requests. The Python code to be executed is sent in the request body, and any required dependencies can be specified as query parameters.
 
-Genezio also provides a CLI tool that you can use to deploy your project from your machine.
-All commands are run from the root of the project, from a terminal:
+1. The service parses the incoming request, extracting the code and dependencies.
+2. If dependencies are specified, they are installed in a temporary directory.
+3. The code is written to a temporary file.
+4. The code is executed in a controlled environment with access to the installed dependencies.
+5. The output (or any errors) from the execution is captured and returned as a JSON response.
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install -g genezio`  | Installs genezio globally                        |
-| `genezio login`           | Logs in to genezio                               |
-| `genezio local`           | Starts a local server                            |
-| `genezio deploy`          | Deploys a production project                     |
-| `genezio --help`          | Get help using genezio                           |
+## API Usage
 
-## Learn more
+### Endpoint
 
-To learn more about Genezio, take a look at the following resources:
+```
+POST /execute
+```
 
-- [Official genezio documentation](https://genezio.com/docs)
-- [Tutorials](https://genezio.com/blog)
+### Request
 
-## Contact
+- Body: Raw Python code to be executed
+- Query Parameter: `dependencies` (optional) - Comma-separated list of Python packages to install before execution
 
-If you need support or you have any questions, please join us in our [Discord channel](https://discord.gg/uc9H5YKjXv). We'd love to chat!
+### Response
 
-## Built With
+The API returns a JSON response with the following structure:
 
-- [Genezio](https://genezio.com/)
-- [Python](https://www.python.org/)
-- [Flask](https://flask.palletsprojects.com/)
+- Success (200 OK):
+  ```json
+  {
+    "output": "Output from the executed code"
+  }
+  ```
 
-***
+- Error (400 Bad Request or 500 Internal Server Error):
+  ```json
+  {
+    "error": "Error message describing what went wrong"
+  }
+  ```
 
-<div align="center"> <a href="https://genezio.com/">
-  <p>Built with Genezio with ❤️ </p>
-  <img alt="genezio logo" src="https://raw.githubusercontent.com/Genez-io/graphics/main/svg/powered_by_genezio.svg" height="40">
-</a>
-</div>
+This README provides an overview of the Python-Eval project, explains its main features, how it works, API usage, security considerations, deployment notes, limitations, and a disclaimer. It should give users a clear understanding of what the project does and how to use it.
