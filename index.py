@@ -113,7 +113,7 @@ def execute():
         # Parse the request body
         decoded_code, dependencies = parse_event_body(request)
 
-        print("Running:\n", code)
+        print("Running:\n", decoded_code)
         if not decoded_code:
             return jsonify({"error": "No code provided in request body"}), 400
 
