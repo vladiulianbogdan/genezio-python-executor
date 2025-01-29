@@ -61,7 +61,6 @@ def write_temp_file(code, file_path):
         code (str): The code to write.
         file_path (str): The path of the temporary file.
     """
-    print("Running:\n", code)
     with open(file_path, "w") as temp_file:
         temp_file.write(code)
 
@@ -114,6 +113,7 @@ def execute():
         # Parse the request body
         decoded_code, dependencies = parse_event_body(request)
 
+        print("Running:\n", code)
         if not decoded_code:
             return jsonify({"error": "No code provided in request body"}), 400
 
