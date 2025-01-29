@@ -21,6 +21,9 @@ def parse_event_body(request):
         tuple: Decoded code (str) and dependencies (list).
     """
     try:
+        code = urllib.parse.unquote(request.args.get("code", ""))
+        print(code)
+
         code = request.data.decode("utf-8")
         decoded_string = urllib.parse.unquote(request.args.get("dependencies", ""))
         if len(decoded_string) == 0:
