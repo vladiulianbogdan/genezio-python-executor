@@ -22,9 +22,8 @@ def parse_event_body(request):
     """
     try:
         code = urllib.parse.unquote(request.args.get("code", ""))
-        print(code)
-
-        code = request.data.decode("utf-8")
+        if len(code) == 0:
+            code = request.data.decode("utf-8")
         decoded_string = urllib.parse.unquote(request.args.get("dependencies", ""))
         if len(decoded_string) == 0:
             return code, []
