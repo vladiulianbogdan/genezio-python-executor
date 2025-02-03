@@ -1,47 +1,31 @@
 from flask import Flask, request, jsonify
-import json
-import subprocess
 import os
 import sys
-import base64
+import subprocess
+import shutil
 import urllib.parse
-import sys
-
 
 app = Flask(__name__)
 
-def parse_event_body(request):
+UPLOAD_DIR = "/tmp/code_exec"
+
+def parse_dependencies(request):
     """
-    Parse the request body to extract code and dependencies.
-
-    Args:
-        request (Request): The Flask request object.
-
-    Returns:
-        tuple: Decoded code (str) and dependencies (list).
+    Parse dependencies from the request.
     """
     try:
-        code = urllib.parse.unquote(request.args.get("code", ""))
-        if len(code) == 0:
-            code = request.data.decode("utf-8")
         decoded_string = urllib.parse.unquote(request.args.get("dependencies", ""))
         if len(decoded_string) == 0:
-            return code, []
-        
+            return []
         deps = decoded_string.split(",")
         print(f"Dependencies to install: {deps}")
-        return code, deps
-    except json.JSONDecodeError:
-        raise ValueError("Invalid JSON in request body")
+        return deps
     except Exception as e:
-        raise ValueError(f"Error parsing request body: {str(e)}")
+        raise ValueError(f"Error parsing dependencies: {str(e)}")
 
 def install_dependencies(dependencies):
     """
-    Install the given dependencies to /tmp/deps.
-
-    Args:
-        dependencies (list): List of dependencies to install.
+    Install dependencies to a temporary directory.
     """
     for dep in dependencies:
         print(f"Installing dependency: {dep} using {sys.executable}")
@@ -55,88 +39,64 @@ def install_dependencies(dependencies):
         else:
             print(f"Successfully installed {dep}.")
 
-def write_temp_file(code, file_path):
+def execute_main():
     """
-    Write the given code to a temporary file.
-
-    Args:
-        code (str): The code to write.
-        file_path (str): The path of the temporary file.
+    Execute the main.py script inside the upload directory.
     """
-    with open(file_path, "w") as temp_file:
-        temp_file.write(code)
+    main_script_path = os.path.join(UPLOAD_DIR, "main.py")
 
-def read_temp_file(file_path):
-    """
-    Read the contents of a temporary file.
+    if not os.path.exists(main_script_path):
+        return {"error": "main.py not found. Please upload a valid main.py file."}, 400
 
-    Args:
-        file_path (str): The path of the temporary file.
-
-    Returns:
-        str: The contents of the file.
-    """
-    with open(file_path, "r") as temp_file:
-        return temp_file.read()
-
-def execute_code(file_path):
-    """
-    Execute the code in the temporary file and capture the output.
-
-    Args:
-        file_path (str): The path of the temporary file.
-
-    Returns:
-        tuple: Standard output, error output, and return code from the execution.
-    """
     env = os.environ.copy()
     env["PYTHONPATH"] = "/tmp/deps" + ":" + ":".join(sys.path)
-
+    
     result = subprocess.run(
-        [sys.executable, file_path],
+        [sys.executable, main_script_path],
         capture_output=True,
         text=True,
-        env=env
+        env=env,
+        cwd=UPLOAD_DIR  # Ensure scripts run inside the upload directory
     )
-    print("Status code", result.returncode, "Stdout", result.stdout, "Stderr", result.stderr)
-    return result.stdout, result.stderr, result.returncode
+    
+    print("Execution result:", result.stdout, result.stderr)
+    
+    if result.returncode != 0:
+        return {"error": result.stderr or "Unknown execution error"}, 400
+
+    return {"output": result.stdout}, 200
 
 @app.route("/execute", methods=["POST"])
 def execute():
     """
-    Endpoint to execute Python code and return the output.
-
-    Returns:
-        Response: JSON response with execution results.
+    Endpoint to execute main.py from uploaded files.
     """
-    temp_file_path = "/tmp/temp_script.py"
-
     try:
-        # Parse the request body
-        decoded_code, dependencies = parse_event_body(request)
+        # Ensure the upload directory exists
+        if os.path.exists(UPLOAD_DIR):
+            shutil.rmtree(UPLOAD_DIR)  # Clean previous files
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-        print("Running:\n", decoded_code)
-        if not decoded_code:
-            return jsonify({"error": "No code provided in request body"}), 400
-
-        # Install dependencies
+        # Parse dependencies
+        dependencies = parse_dependencies(request)
         install_dependencies(dependencies)
 
-        # Write the code to a temporary file
-        write_temp_file(decoded_code, temp_file_path)
+        # Save uploaded files
+        if "files" not in request.files:
+            return jsonify({"error": "No files provided"}), 400
 
-        # Execute the code and capture the output
-        output, error, return_code = execute_code(temp_file_path)
+        for file in request.files.getlist("files"):
+            file_path = os.path.join(UPLOAD_DIR, file.filename)
+            file.save(file_path)
 
-        # Construct the response based on execution results
-        if return_code != 0:
-            return jsonify({"error": error or "Unknown error"}), 400
+        # Execute main.py
+        response, status_code = execute_main()
+        return jsonify(response), status_code
 
-        return jsonify({"output": output}), 200
     except ValueError as ve:
         return jsonify({"error": str(ve)}), 400
     except Exception as e:
         return jsonify({"error": f"Error executing code: {str(e)}"}), 500
     finally:
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        shutil.rmtree(UPLOAD_DIR, ignore_errors=True)  # Cleanup after execution
+
