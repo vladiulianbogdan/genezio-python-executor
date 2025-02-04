@@ -1,29 +1,34 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Response
 import os
 import sys
 import subprocess
 import shutil
 import urllib.parse
+from typing import List
+from fastapi.responses import Response
+from requests_toolbelt import MultipartEncoder
+import mimetypes
 
-app = Flask(__name__)
+app = FastAPI()
 
 UPLOAD_DIR = "/tmp/code_exec"
+OUTPUT_DIR = "/tmp/output"
 
-def parse_dependencies(request):
+def parse_dependencies(dependencies: str = Query("")) -> List[str]:
     """
     Parse dependencies from the request.
     """
     try:
-        decoded_string = urllib.parse.unquote(request.args.get("dependencies", ""))
-        if len(decoded_string) == 0:
+        decoded_string = urllib.parse.unquote(dependencies)
+        if not decoded_string:
             return []
         deps = decoded_string.split(",")
         print(f"Dependencies to install: {deps}")
         return deps
     except Exception as e:
-        raise ValueError(f"Error parsing dependencies: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error parsing dependencies: {str(e)}")
 
-def install_dependencies(dependencies):
+def install_dependencies(dependencies: List[str]):
     """
     Install dependencies to a temporary directory.
     """
@@ -46,11 +51,14 @@ def execute_main():
     main_script_path = os.path.join(UPLOAD_DIR, "main.py")
 
     if not os.path.exists(main_script_path):
-        return {"error": "main.py not found. Please upload a valid main.py file."}, 400
+        raise HTTPException(status_code=400, detail="main.py not found. Please upload a valid main.py file.")
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     env = os.environ.copy()
     env["PYTHONPATH"] = "/tmp/deps" + ":" + ":".join(sys.path)
-    
+    env["OUTPUT_DIR"] = OUTPUT_DIR
+
     result = subprocess.run(
         [sys.executable, main_script_path],
         capture_output=True,
@@ -58,16 +66,33 @@ def execute_main():
         env=env,
         cwd=UPLOAD_DIR  # Ensure scripts run inside the upload directory
     )
-    
-    print("Execution result:", result.stdout, result.stderr)
-    
-    if result.returncode != 0:
-        return {"error": result.stderr or "Unknown execution error"}, 400
 
-    return {"output": result.stdout}, 200
+    return result.stdout, result.stderr
 
-@app.route("/execute", methods=["POST"])
-def execute():
+def create_multipart_response(stdout: str, stderr: str):
+    """
+    Create a multipart response containing stdout, stderr, and output files.
+    """
+    fields = {
+        "stdout": stdout,
+        "stderr": stderr,
+    }
+    
+    if os.path.exists(OUTPUT_DIR):
+        for filename in os.listdir(OUTPUT_DIR):
+            file_path = os.path.join(OUTPUT_DIR, filename)
+            if os.path.isfile(file_path):
+                with open(file_path, "rb") as f:
+                    fields[filename] = (filename, f.read(), mimetypes.guess_type(filename)[0] or "application/octet-stream")
+    
+    encoder = MultipartEncoder(fields=fields)
+    return Response(content=encoder.to_string(), media_type=encoder.content_type)
+
+@app.post("/execute")
+async def execute(
+    dependencies: str = Query(""),
+    files: List[UploadFile] = File(...)
+):
     """
     Endpoint to execute main.py from uploaded files.
     """
@@ -78,25 +103,22 @@ def execute():
         os.makedirs(UPLOAD_DIR, exist_ok=True)
 
         # Parse dependencies
-        dependencies = parse_dependencies(request)
-        install_dependencies(dependencies)
+        deps = parse_dependencies(dependencies)
+        install_dependencies(deps)
 
         # Save uploaded files
-        if "files" not in request.files:
-            return jsonify({"error": "No files provided"}), 400
-
-        for file in request.files.getlist("files"):
+        for file in files:
             file_path = os.path.join(UPLOAD_DIR, file.filename)
-            file.save(file_path)
+            with open(file_path, "wb") as f:
+                f.write(await file.read())
 
         # Execute main.py
-        response, status_code = execute_main()
-        return jsonify(response), status_code
+        stdout, stderr = execute_main()
+        return create_multipart_response(stdout, stderr)
 
-    except ValueError as ve:
-        return jsonify({"error": str(ve)}), 400
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        return jsonify({"error": f"Error executing code: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"Error executing code: {str(e)}")
     finally:
         shutil.rmtree(UPLOAD_DIR, ignore_errors=True)  # Cleanup after execution
-
