@@ -88,9 +88,9 @@ def create_multipart_response(stdout: str, stderr: str):
     
     encoder = MultipartEncoder(fields=fields)
     response = Response(content=encoder.to_string(), media_type=encoder.content_type)
-    async def shutdown_server():
-        os._exit(0)  # Forcefully exit the process
-    response.background = BackgroundTask(shutdown_server)
+    # async def shutdown_server():
+    #     os._exit(0)  # Forcefully exit the process
+    # response.background = BackgroundTask(shutdown_server)
 
     return response
 
