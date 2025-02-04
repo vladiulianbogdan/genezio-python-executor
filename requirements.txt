@@ -5,3 +5,4 @@ BeautifulSoup4
 lxml
 fastapi
 requests_toolbelt
+python-multipart
