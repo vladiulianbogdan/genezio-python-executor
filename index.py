@@ -8,6 +8,7 @@ from typing import List
 from fastapi.responses import Response
 from requests_toolbelt import MultipartEncoder
 import mimetypes
+from starlette.background import BackgroundTask
 
 app = FastAPI()
 
@@ -86,7 +87,12 @@ def create_multipart_response(stdout: str, stderr: str):
                     fields[filename] = (filename, f.read(), mimetypes.guess_type(filename)[0] or "application/octet-stream")
     
     encoder = MultipartEncoder(fields=fields)
-    return Response(content=encoder.to_string(), media_type=encoder.content_type)
+    response = Response(content=encoder.to_string(), media_type=encoder.content_type)
+    async def shutdown_server():
+        os._exit(0)  # Forcefully exit the process
+    response.background = BackgroundTask(shutdown_server)
+
+    return response
 
 @app.post("/execute")
 async def execute(
@@ -114,6 +120,7 @@ async def execute(
 
         # Execute main.py
         stdout, stderr = execute_main()
+
         return create_multipart_response(stdout, stderr)
 
     except HTTPException as e:
