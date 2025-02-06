@@ -114,6 +114,7 @@ async def execute(
 
         # Save uploaded files
         for file in files:
+            print(file)
             file_path = os.path.join(UPLOAD_DIR, file.filename)
             with open(file_path, "wb") as f:
                 f.write(await file.read())
