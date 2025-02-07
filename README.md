@@ -1,58 +1,86 @@
-# Genezio LLM Python Evaluator
+# Genezio Python Executor
 
-Python-Eval is a Flask-based web service designed to enable remote execution of Python code, making it especially valuable for LLM tooling. It provides an API endpoint to execute Python code snippets and return their output, offering a seamless way for LLMs to interact with the external world. By deploying Python-Eval to Genezio, you can achieve a scalable and secure runtime evaluator, ensuring efficient and controlled execution of dynamically generated code.
+## Overview
+
+This repository provides a FastAPI-based service that enables remote execution of Python scripts with optional dependency installation. Users can upload their Python files and execute `main.py` in a sandboxed environment.
 
 ## Features
 
-- Remote Python code execution
-- Dynamic dependency installation
-- Secure execution environment
-- JSON-based API
+- **Remote Code Execution**: Upload and execute Python scripts in a controlled environment.
+- **Dependency Management**: Automatically install specified Python dependencies before execution.
+- **File-Based Input/Output**: Supports file uploads and returns execution results, including standard output, errors, and generated files.
+- **Security**: Runs in an isolated `/tmp` directory with automatic cleanup after execution.
+- **Multipart Response**: Returns execution results and output files in a multipart response format.
 
-# Deploy
-:rocket: You can deploy your own version of the template to Genezio with one click:
+## Deployment
 
-[![Deploy to Genezio](https://raw.githubusercontent.com/Genez-io/graphics/main/svg/deploy-button.svg)](https://app.genez.io/start/deploy?repository=https://github.com/vladiulianbogdan/python-eval)
+Deploy your own instance of this executor using Genezio:
 
-## How It Works
-
-The service exposes a single endpoint `/execute` that accepts POST requests. The Python code to be executed is sent in the request body, and any required dependencies can be specified as query parameters.
-
-1. The service parses the incoming request, extracting the code and dependencies.
-2. If dependencies are specified, they are installed in a temporary directory.
-3. The code is written to a temporary file.
-4. The code is executed in a controlled environment with access to the installed dependencies.
-5. The output (or any errors) from the execution is captured and returned as a JSON response.
+[![Deploy to Genezio](https://raw.githubusercontent.com/Genez-io/graphics/main/svg/deploy-button.svg)](https://app.genez.io/start/deploy?repository=https://github.com/vladiulianbogdan/genezio-python-executor)
 
 ## API Usage
 
-### Endpoint
+### Endpoint: `/execute`
 
+- **Method**: `POST`
+- **Description**: Accepts Python files and executes `main.py` in an isolated environment.
+
+### Request Parameters
+
+| Parameter       | Type             | Description |
+|----------------|-----------------|-------------|
+| `dependencies` | `string (query)` | Comma-separated list of Python packages to install. Default is empty. |
+| `files`        | `multipart/form-data` | One or more Python files (including `main.py`). |
+
+### Example Request
+
+```sh
+curl -X POST "http://localhost:8000/execute?dependencies=requests,numpy" \
+    -F "files=@main.py" \
+    -F "files=@helper.py"
 ```
-POST /execute
+
+### Example Response
+
+The response is a `multipart/form-data` containing:
+- **stdout**: Standard output of the script.
+- **stderr**: Standard error output.
+- **Generated Files** (if any) from the script execution.
+
+#### Example Response Content:
+
+```json
+{
+  "stdout": "Execution completed successfully.\n",
+  "stderr": "",
+  "output.txt": "This is the generated file content."
+}
 ```
 
-### Request
+## Implementation Details
 
-- Body: Raw Python code to be executed
-- Query Parameter: `dependencies` (optional) - Comma-separated list of Python packages to install before execution
+1. **Dependency Installation**
+   - Dependencies are parsed from the query string and installed using `pip` into `/tmp/deps`.
+   - The `PYTHONPATH` is updated to include `/tmp/deps` before executing the script.
 
-### Response
+2. **File Handling**
+   - Uploaded files are stored in `/tmp/code_exec`.
+   - The script `main.py` must be present, or execution will fail.
 
-The API returns a JSON response with the following structure:
+3. **Execution Flow**
+   - Uploaded files are saved.
+   - Dependencies (if any) are installed.
+   - `main.py` is executed within the `/tmp/code_exec` directory.
+   - The output is captured and returned in a multipart response.
+   - The `/tmp/code_exec` directory is cleaned up after execution.
 
-- Success (200 OK):
-  ```json
-  {
-    "output": "Output from the executed code"
-  }
-  ```
+## Security Considerations
 
-- Error (400 Bad Request or 500 Internal Server Error):
-  ```json
-  {
-    "error": "Error message describing what went wrong"
-  }
-  ```
+- The execution environment is cleaned after every request.
+- Runs in an isolated directory to prevent conflicts.
+- Ensure trusted code execution to avoid malicious scripts.
 
-This README provides an overview of the Python-Eval project, explains its main features, how it works, API usage, security considerations, deployment notes, limitations, and a disclaimer. It should give users a clear understanding of what the project does and how to use it.
+## License
+
+This project is licensed under the MIT License.
+
