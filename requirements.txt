@@ -6,4 +6,5 @@ lxml
 fastapi
 requests_toolbelt
 python-multipart
+matplotlib
 pandas
